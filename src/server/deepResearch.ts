@@ -200,14 +200,30 @@ function isThinkingUnsupportedError(error: unknown): boolean {
         : (error as { message?: string })?.message;
   return typeof message === "string" && THINKING_ERROR_PATTERN.test(message);
 }
-
-function parseJson<T>(raw: string, context: string): T {
+/*
+ function parseJson<T>(raw: string, context: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch (error) {
     try {
       return JSON5.parse(raw) as T;
     } catch {
+      throw new Error(`Failed to parse ${context} JSON payload.`);
+    }
+  }
+} 
+*/
+function parseJson<T>(raw: string, context: string): T {
+  console.log(`[parseJson] ${context} raw (first 500 chars):`, raw.slice(0, 500));
+  try {
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    console.error(`[parseJson] JSON.parse failed for ${context}:`, (error as Error).message);
+    try {
+      return JSON5.parse(raw) as T;
+    } catch (e2) {
+      console.error(`[parseJson] JSON5.parse also failed for ${context}:`, (e2 as Error).message);
+      console.error(`[parseJson] Full raw content:`, raw);
       throw new Error(`Failed to parse ${context} JSON payload.`);
     }
   }
