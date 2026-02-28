@@ -214,16 +214,23 @@ function isThinkingUnsupportedError(error: unknown): boolean {
 } 
 */
 function parseJson<T>(raw: string, context: string): T {
-  console.log(`[parseJson] ${context} raw (first 500 chars):`, raw.slice(0, 500));
+  // 🔥 追加：改行をスペースに変換してからパース
+  const normalized = (raw ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  console.log(`[parseJson] ${context} raw (first 500 chars):`, normalized.slice(0, 500));
+
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(normalized) as T;
   } catch (error) {
     console.error(`[parseJson] JSON.parse failed for ${context}:`, (error as Error).message);
     try {
-      return JSON5.parse(raw) as T;
+      return JSON5.parse(normalized) as T;
     } catch (e2) {
       console.error(`[parseJson] JSON5.parse also failed for ${context}:`, (e2 as Error).message);
-      console.error(`[parseJson] Full raw content:`, raw);
+      console.error(`[parseJson] Full raw content:`, normalized);
       throw new Error(`Failed to parse ${context} JSON payload.`);
     }
   }
@@ -249,15 +256,7 @@ function extractJsonObject(raw: string, context: string): string {
 
   const extracted = cleaned.slice(start, end + 1);
 
-  // Validate it's parseable JSON
-  try {
-    JSON.parse(extracted);
-    return extracted;
-  } catch (e) {
-    console.error(`[extractJsonObject] Invalid JSON in ${context}:`, extracted.slice(0, 200));
-    throw new Error(`${context} response contained invalid JSON.`);
-  }
-}
+ return extracted;
 
 function extractCitations(candidate?: Candidate | null): SourceCandidate[] {
   const metadata = candidate?.groundingMetadata;
@@ -526,7 +525,8 @@ async function generatePlan(
           contents: createContent(planPrompt),
           config: {
             ...(signal ? { abortSignal: signal } : {}),
-            maxOutputTokens: 1024,
+            maxOutputTokens: 2048,
+            temperature: 0,
             responseMimeType: "application/json",
             responseSchema: PLAN_SCHEMA,
             systemInstruction: {
@@ -545,7 +545,8 @@ async function generatePlan(
         throw new Error("Plan generation returned an empty response.");
       }
 
-      const payload = parseJson<PlanPayload>(text, "plan");
+      const jsonPayload = extractJsonObject(text, "plan");
+　　　 const payload = parseJson<PlanPayload>(jsonPayload, "plan");
       const steps = (payload.steps ?? []).map((step, index) => ({
         id: (step.id || `S${index + 1}`).trim(),
         title: step.title.trim(),
