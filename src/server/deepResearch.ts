@@ -540,13 +540,22 @@ async function generatePlan(
         signal,
       );
 
-      const text = response.text;
-      if (!text) {
-        throw new Error("Plan generation returned an empty response.");
-      }
+      const text =
+ 　　 (response.text ?? "").trim() ||
+　　  (response.candidates?.[0]?.content?.parts
+ 　   ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+  　  .join("")
+  　  .trim() ?? "");
+
+if (!text) {
+  // 何が返ってきてるか分かるようにログを出す（APIキー等は含まれない）
+  console.error("[generatePlan] Empty text. Candidate:", response.candidates?.[0]);
+  throw new Error("Plan generation returned an empty response.");
+}
 
       const jsonPayload = extractJsonObject(text, "plan");
-　　　 const payload = parseJson<PlanPayload>(jsonPayload, "plan");
+　　　 const jsonPayload = extractJsonObject(text, "plan");
+　　　　const payload = parseJson<PlanPayload>(jsonPayload, "plan");
       const steps = (payload.steps ?? []).map((step, index) => ({
         id: (step.id || `S${index + 1}`).trim(),
         title: step.title.trim(),
