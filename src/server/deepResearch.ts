@@ -632,11 +632,23 @@ async function gatherEvidence(
         signal,
       );
 
-      const text = response.text;
-      if (!text || text.trim().length === 0) {
-        console.error(`[gatherEvidence] Empty response for step ${step.id}`);
-        throw new Error(`Evidence generation for step ${step.id} returned an empty response.`);
-      }
+      const text =
+  (response.text ?? "").trim() ||
+  (response.candidates?.[0]?.content?.parts
+    ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+    .join("")
+    .trim() ?? "");
+
+if (!text) {
+  console.error("[generatePlan] Empty response dump:", {
+    hasText: Boolean(response.text),
+    candidatesLen: response.candidates?.length ?? 0,
+    firstFinishReason: (response.candidates?.[0] as any)?.finishReason,
+    firstSafety: (response.candidates?.[0] as any)?.safetyRatings,
+    firstParts: (response.candidates?.[0] as any)?.content?.parts,
+  });
+  throw new Error("Plan generation returned an empty response.");
+}
 
       const jsonPayload = extractJsonObject(text, `evidence for step ${step.id}`);
       const payload = parseJson<EvidencePayload>(jsonPayload, `evidence for step ${step.id}`);
