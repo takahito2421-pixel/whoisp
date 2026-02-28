@@ -550,9 +550,6 @@ const text =
     ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
     .join("")
     .trim() ?? "");
- 　   ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
-  　  .join("")
-  　  .trim() ?? "");
 
 if (!text) {
   // 何が返ってきてるか分かるようにログを出す（APIキー等は含まれない）
