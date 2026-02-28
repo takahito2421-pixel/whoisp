@@ -242,21 +242,25 @@ function extractJsonObject(raw: string, context: string): string {
     throw new Error(`${context} response was empty.`);
   }
 
-  // Remove markdown code fences if present
-  let cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  const cleaned = raw
+    .replace(/```json\s*/g, "")
+    .replace(/```\s*/g, "")
+    .trim();
 
-  // Try to find JSON object
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
 
   if (start === -1 || end === -1 || end <= start) {
-    console.error(`[extractJsonObject] No JSON object found in ${context} response:`, cleaned.slice(0, 200));
+    console.error(
+      `[extractJsonObject] No JSON object found in ${context} response:`,
+      cleaned.slice(0, 200),
+    );
     throw new Error(`${context} response did not contain a JSON object.`);
   }
 
-  const extracted = cleaned.slice(start, end + 1);
-
- return extracted;
+  return cleaned.slice(start, end + 1);
+}
+  
 
 function extractCitations(candidate?: Candidate | null): SourceCandidate[] {
   const metadata = candidate?.groundingMetadata;
@@ -540,9 +544,12 @@ async function generatePlan(
         signal,
       );
 
-      const text =
- 　　 (response.text ?? "").trim() ||
-　　  (response.candidates?.[0]?.content?.parts
+const text =
+  (response.text ?? "").trim() ||
+  (response.candidates?.[0]?.content?.parts
+    ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+    .join("")
+    .trim() ?? "");
  　   ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
   　  .join("")
   　  .trim() ?? "");
@@ -554,8 +561,7 @@ if (!text) {
 }
 
       const jsonPayload = extractJsonObject(text, "plan");
-　　　 const jsonPayload = extractJsonObject(text, "plan");
-　　　　const payload = parseJson<PlanPayload>(jsonPayload, "plan");
+const payload = parseJson<PlanPayload>(jsonPayload, "plan");
       const steps = (payload.steps ?? []).map((step, index) => ({
         id: (step.id || `S${index + 1}`).trim(),
         title: step.title.trim(),
@@ -632,7 +638,7 @@ async function gatherEvidence(
         signal,
       );
 
-      const text =
+    const text =
   (response.text ?? "").trim() ||
   (response.candidates?.[0]?.content?.parts
     ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
@@ -647,7 +653,7 @@ if (!text) {
     firstSafety: (response.candidates?.[0] as any)?.safetyRatings,
     firstParts: (response.candidates?.[0] as any)?.content?.parts,
   });
-  throw new Error("Plan generation returned an empty response.");
+  throw new Error(`Evidence generation returned an empty response for step ${step.id}.`);
 }
 
       const jsonPayload = extractJsonObject(text, `evidence for step ${step.id}`);
