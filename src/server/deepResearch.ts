@@ -557,8 +557,67 @@ if (!text) {
   throw new Error("Plan generation returned an empty response.");
 }
 
-      const jsonPayload = extractJsonObject(text, "plan");
-const payload = parseJson<PlanPayload>(jsonPayload, "plan");
+let payload: PlanPayload;
+
+try {
+  const jsonPayload = extractJsonObject(text, "plan");
+  payload = parseJson<PlanPayload>(jsonPayload, "plan");
+} catch (e) {
+  // まずはログ（先頭だけ。キーなどは含まれない）
+  console.error("[generatePlan] Non-JSON plan output (first 500):", text.slice(0, 500));
+
+  // --- 修復リクエスト：いまの出力を JSON に整形し直させる ---
+  const repairPrompt =
+    `Convert the following text into a valid JSON object that matches the required schema.\n` +
+    `Return ONLY JSON. No markdown. No commentary.\n\n` +
+    `TEXT:\n${text}`;
+
+  const repairResponse = await withTimeout(
+    generateContentWithAdaptiveThinking({
+      client,
+      model,
+      contents: createContent(repairPrompt),
+      config: {
+        ...(signal ? { abortSignal: signal } : {}),
+        maxOutputTokens: 2048,
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: PLAN_SCHEMA,
+        systemInstruction: {
+          role: "system",
+          parts: [
+            {
+              text:
+                `${PLAN_SYSTEM_PROMPT}\n` +
+                `You MUST output a single JSON object with keys: primaryGoal, rationale, steps, expectedInsights.\n` +
+                `Do not output anything else.`,
+            },
+          ],
+        },
+      },
+      // 修復では thinking を切ってもOK（安定狙い）
+      enableThinking: false,
+    }),
+    TIMEOUT.PLAN_GENERATION,
+    "Plan repair timed out",
+    signal,
+  );
+
+  const repairedText =
+    (repairResponse.text ?? "").trim() ||
+    (repairResponse.candidates?.[0]?.content?.parts
+      ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+      .join("")
+      .trim() ?? "");
+
+  if (!repairedText) {
+    console.error("[generatePlan] Repair returned empty. Candidate:", repairResponse.candidates?.[0]);
+    throw new Error("Plan repair returned an empty response.");
+  }
+
+  const repairedJson = extractJsonObject(repairedText, "plan repair");
+  payload = parseJson<PlanPayload>(repairedJson, "plan repair");
+}
       const steps = (payload.steps ?? []).map((step, index) => ({
         id: (step.id || `S${index + 1}`).trim(),
         title: step.title.trim(),
